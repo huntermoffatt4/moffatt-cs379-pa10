@@ -32,28 +32,33 @@ class ActivationRecord:
         static_link: Optional["ActivationRecord"],
         dynamic_link: Optional["ActivationRecord"],
     ) -> None:
-        # TODO: store all six arguments as attributes of the same names.
-        raise NotImplementedError
+        # Storing all six arguments as attributes of the same names
+        self.function_name = function_name
+        self.parameters = parameters
+        self.locals_env = locals_env
+        self.return_address = return_address
+        self.static_link = static_link
+        self.dynamic_link = dynamic_link
 
 
 class CallStack:
     def __init__(self) -> None:
-        # TODO: internal storage for the stack of frames.
-        raise NotImplementedError
+        # Empty list holding activation records
+         self._frames: List[ActivationRecord] = []
 
     def push(self, record: ActivationRecord) -> None:
-        # TODO
-        raise NotImplementedError
+        # Adds activation record to the top of the stack
+        self._frames.append(record)
 
     def pop(self) -> ActivationRecord:
         """Remove and return the top frame."""
-        # TODO
-        raise NotImplementedError
+        record = self._frames.pop()
+        record.locals_env.release(getattr(record, "borrowed_cells", ()))
+        return record
 
     def current(self) -> ActivationRecord:
         """Return (without removing) the top frame."""
-        # TODO
-        raise NotImplementedError
+        return self._frames[-1]
 
     def trace(self) -> List[str]:
         """
@@ -61,5 +66,8 @@ class CallStack:
         stack first (oldest call first). Format is up to you, but
         each line must include the function_name and its parameters.
         """
-        # TODO
-        raise NotImplementedError
+        # List showing every frame from oldest to newest
+        return [
+            f"{record.function_name} {record.parameters}"
+            for record in self._frames
+        ]

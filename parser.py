@@ -79,40 +79,117 @@ class _ParserState:
 
 
 def parse_factor(state: _ParserState):
-    # TODO
-    raise NotImplementedError
+    if state.peek().type == "NUMBER":
+        # Consumes/returns token and moves to next
+        tok = state.advance()
+        # Creates AST node
+        return Number(int(tok.lexeme), tok.line)
+
+    elif state.peek().type == "LPAREN":
+        # Consumes (
+        state.advance()
+        node = parse_expr(state)
+        # Expects )
+        state.expect("RPAREN")
+        return node
+
+    elif state.peek().type == "IDENT":
+        tok = state.advance()
+        # Creates AST node
+        return Variable(tok.lexeme, tok.line)
+
+    else:
+        tok = state.peek()
+        raise ParseError(
+            f"Line {tok.line}: expected NUMBER, IDENT, or LPAREN"
+            f"found {tok.type} ({tok.lexeme!r})."
+        )
 
 
 def parse_term(state: _ParserState):
-    # TODO
-    raise NotImplementedError
+    node = parse_factor(state)
+    while state.peek().type in ("STAR", "SLASH"):
+        # Consumes and stores operator token
+        op_tok = state.advance()
+        # Parses and stores right side of operator
+        right = parse_factor(state)
+        # Combines everything into a binary-operation AST node
+        node = BinOp(op_tok.lexeme, node, right, op_tok.line)
+    return node
 
 
 def parse_expr(state: _ParserState):
-    # TODO
-    raise NotImplementedError
+    node = parse_term(state)
+    while state.peek().type in ("PLUS", "MINUS"):
+        # Consumes and stores operator token
+        op_tok = state.advance()
+        # Parses and stores right side of operator
+        right = parse_term(state)
+        # Combines everything into a binary-operation AST node
+        node = BinOp(op_tok.lexeme, node, right, op_tok.line)
+    return node
 
 
 def parse_declaration(state: _ParserState) -> Declaration:
-    # TODO
-    raise NotImplementedError
+    # Requires token to be LET and consumes it
+    state.expect("LET")
+    # Requires next token to be an identifier and stores it
+    name_tok = state.expect("IDENT")
+    # Requires next token to be an assignment and consumes it
+    state.expect("ASSIGN")
+    # Parses everything on the right side of the assignment
+    expr = parse_expr(state)
+    # Requires next token to be a semicolon and consumes it
+    state.expect("SEMI")
+    # Builds the declaration AST node
+    return Declaration(name_tok.lexeme, expr, name_tok.line)
 
 
 def parse_assignment(state: _ParserState) -> Assignment:
-    # TODO
-    raise NotImplementedError
+    # Requires next token to be an identifier and stores it
+    name_tok = state.expect("IDENT")
+    # Requires next token to be an assignment and consumes it
+    state.expect("ASSIGN")
+    # Parses everything on the right side of the assignment
+    expr = parse_expr(state)
+    # Requires next token to be a semicolon and consumes it
+    state.expect("SEMI")
+    # Builds the declaration AST node
+    return Assignment(name_tok.lexeme, expr, name_tok.line)
 
 
 def parse_statement(state: _ParserState):
-    # TODO: peek at state.peek().type to choose declaration vs. assignment
-    raise NotImplementedError
+    tok = state.peek()
+    if tok.type == "LET":
+        return parse_declaration(state)
+    
+    elif tok.type == "IDENT":
+        return parse_assignment(state)
+
+    else:
+        raise ParseError(
+            f"Line {tok.line}: expected LET or IDENT"
+            f"found {tok.type} ({tok.lexeme!r})."
+        )
 
 
 def parse_program(state: _ParserState) -> Program:
-    # TODO: loop parse_statement() until EOF
-    raise NotImplementedError
+    statements = []
+    # Keeps parsing until we reach the end of file token
+    while state.peek().type != "EOF":
+        # Parses and stores one complete statement
+        statement = parse_statement(state)
+        # Adds the AST node to our statements list
+        statements.append(statement)
+    return Program(statements)
 
 
 def parse(tokens: List[Token]) -> Program:
+    # Create the parser state
     state = _ParserState(tokens)
-    return parse_program(state)
+    # Parse the whole program
+    program = parse_program(state)
+    # Check for the end of file token
+    state.expect("EOF")
+    # Return the program
+    return program

@@ -34,20 +34,28 @@ class HeapNode:
     def get_child_handles(self) -> List[int]:
         return [v for v in self.fields.values() if isinstance(v, int)]
 
+class HeapHandle(int):
+    # Distinguishes allocated handles from arithmetic integers
+    pass
+
 
 class GCHeap:
     def __init__(self) -> None:
-        # TODO: internal storage -- e.g. {handle: (obj, refcount)} -- and a handle counter.
-        raise NotImplementedError
+        # Stores each object and its reference count
+        self._heap = {}
+        self._next_handle = 1
 
     def allocate(self, obj: Any) -> int:
         """Store obj, return a new handle. Initial refcount is 1 (the creating reference)."""
-        # TODO
-        raise NotImplementedError
+        # Assigns a new handle and stores a ref count of 1
+        handle = HeapHandle(self._next_handle)
+        self._next_handle += 1
+        self._heap[handle] = [obj, 1]
+        return handle
 
     def incref(self, handle: int) -> None:
-        # TODO
-        raise NotImplementedError
+        # Increases reference count
+        self._heap[handle][1] += 1
 
     def decref(self, handle: int) -> None:
         """
@@ -55,14 +63,27 @@ class GCHeap:
         cascade-decref every handle returned by the freed object's
         get_child_handles() (if it has that method), recursively.
         """
-        # TODO
-        raise NotImplementedError
+        # Retrieves object and its reference count,
+        obj, count = self._heap[handle]
+
+        # If there are multiple references, decrease the count without removing the object
+        if count > 1:
+            self._heap[handle][1] -= 1
+            return
+
+        # Remove the object and release its child references
+        del self._heap[handle]
+
+        # If the object has child handles, refernces are released recursively
+        if hasattr(obj, "get_child_handles"):
+            for child in obj.get_child_handles():
+                self.decref(child)
 
     def is_alive(self, handle: int) -> bool:
-        # TODO
-        raise NotImplementedError
+        # Checks whether the object remains allocated
+        return handle in self._heap
 
     def live_count(self) -> int:
         """Number of currently-alive (refcount > 0) handles."""
-        # TODO
-        raise NotImplementedError
+        # Counts all allocated objects
+        return len(self._heap)

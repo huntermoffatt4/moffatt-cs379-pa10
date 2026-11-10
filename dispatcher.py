@@ -17,7 +17,12 @@ resolved method with the object as receiver, which is the actual
 mechanism this PA is about.
 """
 
-from typing import Callable, Dict, Optional
+from typing import Dict, Optional, Protocol
+
+
+class MethodLike(Protocol):
+    def call(self, args: list, caller_env) -> object:
+        """PA 7 Closure-compatible call interface."""
 
 
 class ClassDecl:
@@ -25,25 +30,28 @@ class ClassDecl:
 
     __slots__ = ("name", "methods")
 
-    def __init__(self, name: str, methods: Dict[str, Callable]) -> None:
+    def __init__(self, name: str, methods: Dict[str, MethodLike]) -> None:
         self.name = name
-        self.methods = methods  # {method_name: fn(self) -> value}, declared on THIS class only
+        self.methods = methods  # methods declared on THIS class only
 
 
 class VTable:
-    def __init__(self, entries: Dict[str, Callable], owning_class_name: str = "?") -> None:
+    def __init__(self, entries: Dict[str, MethodLike], owning_class_name: str = "?") -> None:
         """`owning_class_name` is just for error messages -- store it alongside entries."""
-        # TODO: store entries and owning_class_name.
-        raise NotImplementedError
+        # Storing methods and class name
+        self.entries = entries
+        self.owning_class_name = owning_class_name
 
-    def resolve(self, method_name: str) -> Callable:
+    def resolve(self, method_name: str) -> MethodLike:
         """
-        Return the callable bound to `method_name`. Raise a clear
+        Return the method object bound to `method_name`. Raise a clear
         error (e.g. AttributeError) whose message names BOTH the
         owning class and the missing method if it doesn't exist.
         """
-        # TODO
-        raise NotImplementedError
+        # Finds a method and returns it, or raise an error if it doesn't exist
+        if method_name in self.entries:
+            return self.entries[method_name]
+        raise AttributeError(f"{self.owning_class_name} has no method '{method_name}'")
 
 
 def build_vtable(class_node: ClassDecl, parent_vtable: Optional[VTable] = None) -> VTable:
@@ -51,24 +59,48 @@ def build_vtable(class_node: ClassDecl, parent_vtable: Optional[VTable] = None) 
     Start from a copy of parent_vtable's entries (inherited methods),
     then overwrite only the slots class_node itself redeclares. A
     method class_node does NOT override must resolve to the EXACT SAME
-    callable object the parent uses -- don't wrap or duplicate it.
+    method object the parent uses -- don't wrap or duplicate it.
     Pass class_node.name as the new VTable's owning_class_name.
     """
-    # TODO
-    raise NotImplementedError
+    # Copies the parent's methods if there are any
+    if parent_vtable is None:
+        entries = {}
+    else:
+        entries = dict(parent_vtable.entries)
+
+    # Adds or replaces methods declared by child
+    entries.update(class_node.methods)
+    return VTable(entries, class_node.name)
 
 
 class USIObject:
     def __init__(self, class_descriptor: VTable, fields: dict) -> None:
-        # TODO: store both. class_descriptor is this object's ACTUAL runtime VTable.
-        raise NotImplementedError
+        # Storing the object's class info and fields
+        self.class_descriptor = class_descriptor
+        self.fields = fields
+
+    def get_child_handles(self) -> list[int]:
+        # Return the references held by this object
+        from gc_heap import HeapHandle
+        return [v for v in self.fields.values() if isinstance(v, HeapHandle)]
+
+    def set_field(self, name: str, value, heap) -> None:
+        # Keep the new reference before dropping the old one
+        from gc_heap import HeapHandle
+        old = self.fields.get(name)
+        if isinstance(value, HeapHandle):
+            heap.incref(value)
+        self.fields[name] = value
+        if isinstance(old, HeapHandle):
+            heap.decref(old)
 
 
 def dispatch(obj: USIObject, method_name: str, args: list, caller_env) -> object:
     """
     Resolve method_name through obj's OWN VTable (never a declared/
-    static type), then call the resolved method with obj as the
-    receiver: resolved_method(obj, *args).
+    static type), then call the resolved method via PA 7's interface:
+    resolved_method.call([obj, *args], caller_env).
     """
-    # TODO
-    raise NotImplementedError
+    # Looks up the method and calls it
+    method = obj.class_descriptor.resolve(method_name)
+    return method.call([obj, *args], caller_env)
